@@ -46,6 +46,11 @@ func hashRust(g2 *G2, msg []byte, ciphersuite []byte) *PointG2 {
 		// use the two Fq to create one Fq2
 	}
 	// use the two Fq2 to create G2
+	// 	let mut tmp = PtT::osswu_map(&u[0]);
+	//  tmp.add_assign(&PtT::osswu_map(&u[1]));
+	// 	tmp.isogeny_map();
+	//  tmp.clear_h();
+
 	return nil
 }
 
@@ -111,7 +116,7 @@ func computeFq(msg, domain []byte, count int) {
 	//fq2List := make([]fq2, 2)
 	for i := 0; i < count; i++ {
 		bytesToConvert := expanded[i*len_per_elm : (i+1)*len_per_elm]
-		fmt.Println(" convert: i ", i, " bytes ->", bytesToConvert)
+		//fmt.Println(" convert: i ", i, " bytes ->", bytesToConvert)
 		fq_1 := bytesToConvert[:64]
 		fq_2 := bytesToConvert[64:]
 		fmt.Println("fq_1", fq_1, "fq_2", fq_2)
