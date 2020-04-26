@@ -1,162 +1,63 @@
 package bls
 
 import (
-	"crypto/sha256"
-	"fmt"
-	"io"
 	"testing"
 
-	"golang.org/x/crypto/hkdf"
+	"github.com/stretchr/testify/require"
 )
 
-/////// PAIRED
-// Following implements both the mapping to Fq from here
-// https://github.com/filecoin-project/pairing/blob/master/src/hash_to_field.rs#L70
-// and then creating the point here
-// https://github.com/filecoin-project/pairing/blob/master/src/hash_to_curve.rs#L24
-func hashRust(g2 *G2, msg []byte, ciphersuite []byte) *PointG2 {
-	msg_hash := hkdf.Extract(sha256.New, msg, ciphersuite)
-	for ctrI := 0; ctrI < 2; ctrI++ {
-		// fq2 has two Fq goes from idx 1->2
-		for i := 1; i < 3; i++ {
-			var ctr = byte(ctrI)
-			var idx = byte(i)
-			info := []byte{72, 50, 67, ctr, idx}
+func TestMapG2PairedV18(t *testing.T) {
+	// output from rust library
+	// msg: [1, 2, 3, 4]
+	// ciphersuite: [11, 12, 13, 14]
+	// g1: [131, 111, 101, 2, 150, 122, 179, 98, 201, 225, 146, 174, 226, 77, 21, 60, 140, 1
+	// 0, 217, 128, 181, 82, 104, 221, 252, 249, 56, 124, 193, 185, 123, 239, 36, 240, 121,
+	// 183, 140, 209, 83, 128, 16, 32, 220, 63, 255, 54, 102, 156]
+	// g2: [160, 93, 104, 53, 27, 41, 139, 58, 91, 218, 1, 247, 99, 145, 6, 244, 46, 130, 12
+	// 9, 130, 230, 49, 221, 51, 122, 110, 218, 197, 119, 123, 115, 207, 77, 29, 152, 101, 1
+	// 40, 227, 27, 180, 46, 206, 203, 247, 17, 32, 40, 233, 9, 162, 246, 128, 239, 5, 94, 8
+	// 5, 50, 14, 217, 228, 20, 130, 226, 88, 244, 97, 110, 73, 241, 216, 222, 158, 122, 93,
+	//  148, 130, 16, 43, 139, 5, 162, 119, 129, 160, 19, 26, 132, 114, 18, 146, 73, 48, 56,
+	//  146, 137, 22]
+	msg := []byte{1, 2, 3, 4}
+	ciphersuite := []byte{11, 12, 13, 14}
 
-			out := make([]byte, 64)
-			h := hkdf.Expand(sha256.New, msg_hash, info)
-			if _, err := io.ReadFull(h, out); err != nil {
-				panic(err)
-			}
-			fmt.Println("counter", ctr, "index", idx, "out: ", out)
-			// use out to map to Fq using following:
-			// fn from_okm(okm: &GenericArray<u8, U64>) -> Fq {
-			// let mut repr = FqRepr::default();
-			// repr.read_be(Cursor::new([0; 16]).chain(Cursor::new(&okm[..32])))
-			// 	.unwrap();
-			// let mut elm = Fq::from_repr(repr).unwrap();
-			// elm.mul_assign(&F_2_256);
+	g2 := mapG2PairedV18(msg, ciphersuite)
+	buffG2 := NewG2(nil).ToCompressed(g2)
+	expG2 := []byte{160, 93, 104, 53, 27, 41, 139, 58, 91, 218, 1, 247, 99, 145, 6, 244, 46, 130, 12, 9, 130, 230, 49, 221, 51, 122, 110, 218, 197, 119, 123, 115, 207, 77, 29, 152, 101, 1, 40, 227, 27, 180, 46, 206, 203, 247, 17, 32, 40, 233, 9, 162, 246, 128, 239, 5, 94, 8, 5, 50, 14, 217, 228, 20, 130, 226, 88, 244, 97, 110, 73, 241, 216, 222, 158, 122, 93, 148, 130, 16, 43, 139, 5, 162, 119, 129, 160, 19, 26, 132, 114, 18, 146, 73, 48, 56, 146, 137, 22}
+	require.Equal(t, expG2, buffG2)
 
-			// repr.read_be(Cursor::new([0; 16]).chain(Cursor::new(&okm[32..])))
-			// 	.unwrap();
-			// let elm2 = Fq::from_repr(repr).unwrap();
-			// elm.add_assign(&elm2);
-			// elm
-		}
-		// use the two Fq to create one Fq2
-	}
-	// use the two Fq2 to create G2
-	// 	let mut tmp = PtT::osswu_map(&u[0]);
-	//  tmp.add_assign(&PtT::osswu_map(&u[1]));
-	// 	tmp.isogeny_map();
-	//  tmp.clear_h();
+	g1 := mapG1PairedV18(msg, ciphersuite)
+	buffG1 := NewG1().ToCompressed(g1)
+	expG1 := []byte{131, 111, 101, 2, 150, 122, 179, 98, 201, 225, 146, 174, 226, 77, 21, 60, 140, 1, 0, 217, 128, 181, 82, 104, 221, 252, 249, 56, 124, 193, 185, 123, 239, 36, 240, 121, 183, 140, 209, 83, 128, 16, 32, 220, 63, 255, 54, 102, 156}
+	require.Equal(t, expG1, buffG1)
 
-	return nil
 }
 
-//////   PAIRING_PLUS
-// following method implements
-// https://github.com/algorand/pairing-plus/blob/master/src/hash_to_field.rs#L18
-func expandMessage(msg, domain []byte) []byte {
-	len_in_bytes := 256
-	length := len_in_bytes // just easier
-	// b_0
-	h := sha256.New()
-	// XXX Why do they hash a 64 byte slice empty !?
-	h.Write(make([]byte, 64))
-	h.Write(msg)
-	h.Write([]byte{byte(length >> 8), byte(length), 0})
-	h.Write(domain)
-	h.Write([]byte{byte(len(domain))})
-	b0 := h.Sum(nil)
-	// b_1
-	h = sha256.New()
-	h.Write(b0)
-	h.Write([]byte{byte(1)})
-	h.Write(domain)
-	h.Write([]byte{byte(len(domain))})
-	bvals := h.Sum(nil)
-	//fmt.Println("b0: ", b0)
-	//fmt.Println("bvals: ", bvals)
+func TestMapG2PairingRustV19(t *testing.T) {
+	// output from rust library
+	// msg: [1, 2, 3, 4]
+	// ciphersuite: [11, 12, 13, 14]
+	// g1: [136, 41, 115, 190, 51, 57, 186, 221, 122, 190, 164, 136, 206, 67, 232, 125, 233, 231, 173,
+	//  137, 45, 104, 72, 73, 112, 102, 51, 164, 37, 57, 193, 116, 137, 71, 209, 254, 181, 132, 238, 1
+	// 73, 194, 241, 24, 210, 169, 220, 180, 96]
+	// g2: [130, 213, 97, 142, 126, 5, 186, 59, 86, 64, 226, 91, 204, 63, 187, 129, 169, 40, 29, 11, 1
+	// 91, 9, 50, 207, 28, 0, 76, 251, 86, 151, 252, 6, 180, 245, 1, 135, 188, 144, 82, 163, 153, 198,
+	//  36, 117, 177, 168, 94, 227, 0, 79, 2, 31, 240, 26, 65, 152, 238, 84, 95, 242, 11, 194, 172, 11
+	// 8, 40, 87, 36, 181, 147, 183, 174, 64, 153, 219, 3, 130, 109, 101, 39, 51, 214, 232, 149, 146,
+	// 223, 47, 153, 72, 176, 5, 15, 43, 42, 146, 74, 247]
 
-	// ell = 8
-	b_in_bytes := 32
-	for i := 1; i < 8; i++ {
-		tmp := make([]byte, 32)
-		//fmt.Println("(i-1) ", i-1, " i ", i, " b_bytes", b_in_bytes)
-		toZip := bvals[(i-1)*b_in_bytes : i*b_in_bytes]
-		if len(toZip) != len(b0) {
-			panic("should check")
-		}
-		for j := 0; j < len(toZip); j++ {
-			tmp[j] = b0[j] ^ toZip[j]
-		}
-		//fmt.Println("\ttmp i", i, " --> ", tmp)
-		h = sha256.New()
-		h.Write(tmp)
-		h.Write([]byte{byte(i + 1)})
-		h.Write(domain)
-		h.Write([]byte{byte(len(domain))})
-		bvals = append(bvals, h.Sum(nil)...)
-		//fmt.Println("\t bvals i ", i, " -> ", bvals)
-	}
-	return bvals[:len_in_bytes]
-}
+	msg := []byte{1, 2, 3, 4}
+	ciphersuite := []byte{11, 12, 13, 14}
 
-// following implements
-// https://github.com/algorand/pairing-plus/blob/master/src/hash_to_curve.rs#L30
-// with hardcoded value for sha256 and the xmd mechanism
-// In rust it corresponds to using:
-// let g2 = <G2 as HashToCurve<ExpandMsgXmd<Sha256>>>::hash_to_curve(vec![1],vec![10]);
-// - taken from the bls library from the ref
-// https://github.com/algorand/bls_sigs_ref/blob/master/rust-impl/src/signature.rs#L413
-func computeFq(msg, domain []byte, count int) {
-	expanded := expandMessage(msg, domain)
-	len_per_elm := 128
-	//fq2List := make([]fq2, 2)
-	for i := 0; i < count; i++ {
-		bytesToConvert := expanded[i*len_per_elm : (i+1)*len_per_elm]
-		//fmt.Println(" convert: i ", i, " bytes ->", bytesToConvert)
-		fq_1 := bytesToConvert[:64]
-		fq_2 := bytesToConvert[64:]
-		fmt.Println("fq_1", fq_1, "fq_2", fq_2)
-		// convert both into Fq and then into Fq2
-		// using same method as before
-		//
-		// let mut repr = FqRepr::default();
-		// repr.read_be(Cursor::new([0; 16]).chain(Cursor::new(&okm[..32])))
-		//     .unwrap();
-		// let mut elm = Fq::from_repr(repr).unwrap();
-		// elm.mul_assign(&F_2_256);
+	/* g1 := mapG1PairingPlusV19Sha256(msg, ciphersuite)*/
+	//buffG1 := NewG1().ToCompressed(g1)
+	//expG1 := []byte{136, 41, 115, 190, 51, 57, 186, 221, 122, 190, 164, 136, 206, 67, 232, 125, 233, 231, 173, 137, 45, 104, 72, 73, 112, 102, 51, 164, 37, 57, 193, 116, 137, 71, 209, 254, 181, 132, 238, 1, 73, 194, 241, 24, 210, 169, 220, 180, 96}
+	//require.Equal(t, expG1, buffG1)
 
-		// repr.read_be(Cursor::new([0; 16]).chain(Cursor::new(&okm[32..])))
-		//     .unwrap();
-		// let elm2 = Fq::from_repr(repr).unwrap();
-		// elm.add_assign(&elm2);
-		// elm
-	}
-	// use the two Fq2 created above with the osswu map
-	// u is an array of two Fq2
-	// 	let mut tmp = PtT::osswu_map(&u[0]);
-	//  tmp.add_assign(&PtT::osswu_map(&u[1]));
-	// 	tmp.isogeny_map();
-	//  tmp.clear_h();
-}
+	g2 := mapG2PairingPlusV19Sha256(msg, ciphersuite)
+	buffG2 := NewG2(nil).ToCompressed(g2)
+	expG2 := []byte{130, 213, 97, 142, 126, 5, 186, 59, 86, 64, 226, 91, 204, 63, 187, 129, 169, 40, 29, 11, 1, 91, 9, 50, 207, 28, 0, 76, 251, 86, 151, 252, 6, 180, 245, 1, 135, 188, 144, 82, 163, 153, 198, 36, 117, 177, 168, 94, 227, 0, 79, 2, 31, 240, 26, 65, 152, 238, 84, 95, 242, 11, 194, 172, 11, 8, 40, 87, 36, 181, 147, 183, 174, 64, 153, 219, 3, 130, 109, 101, 39, 51, 214, 232, 149, 146, 223, 47, 153, 72, 176, 5, 15, 43, 42, 146, 74, 247}
+	require.Equal(t, expG2, buffG2)
 
-func hashPlus(g2 *G2, msg []byte, cipher []byte) *PointG2 {
-
-	return nil
-}
-
-func TestPairingPlus(t *testing.T) {
-	var msg = []byte{1}
-	var ciphersuite = []byte{10}
-	//var expanded = expandMessage(msg, ciphersuite)
-	//fmt.Printf("expanded message (len %d): %v\n", len(expanded), expanded)
-	computeFq(msg, ciphersuite, 2)
-}
-func TestCurrentPaired(t *testing.T) {
-	var msg = []byte{1, 0} // 0 padded
-	var ciphersuite = []byte{10}
-	hashRust(NewG2(nil), msg, ciphersuite)
 }
