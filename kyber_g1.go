@@ -9,8 +9,6 @@ import (
 	"github.com/drand/kyber/group/mod"
 )
 
-var DomainG1 = []byte{1, 9, 6, 9, 9, 6, 9, 1}
-
 // KyberG1 is a kyber.Point holding a G1 point on BLS12-381 curve
 type KyberG1 struct {
 	p *PointG1
@@ -131,7 +129,7 @@ func (k *KyberG1) String() string {
 }
 
 func (k *KyberG1) Hash(m []byte) kyber.Point {
-	p, _ := NewG1().HashToCurve(m, DomainG1)
+	p, _ := NewG1().HashToCurve(m, Domain)
 	k.p = p
 	return k
 

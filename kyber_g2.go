@@ -133,7 +133,7 @@ func (k *KyberG2) String() string {
 }
 
 func (k *KyberG2) Hash(m []byte) kyber.Point {
-	pg2, _ := NewG2(nil).HashToCurve(m, DomainG2)
+	pg2, _ := NewG2(nil).HashToCurve(m, Domain)
 	k.p = pg2
 	return k
 }
