@@ -45,7 +45,7 @@ func swuMapG1(u *fe) (*fe, *fe) {
 	}
 	y := new(fe)
 	sqrt(y, y2)
-	if y.signBE() != u.signBE() {
+	if y.sign() != u.sign() {
 		neg(y, y)
 	}
 	return x, y
@@ -109,7 +109,7 @@ func swuMapG2(e *fp2, u *fe2) (*fe2, *fe2) {
 	}
 	y := e.new()
 	e.sqrt(y, y2)
-	if y.signBE() != u.signBE() {
+	if y.sign() != u.sign() {
 		e.neg(y, y)
 	}
 	return x, y

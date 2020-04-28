@@ -313,6 +313,7 @@ func TestKyberThresholdG1(t *testing.T) {
 }
 
 func TestKyberMap(t *testing.T) {
+	t.Skip("waiting for paired to upgrade to v7")
 	// TEST compatibility with pairing_plus v19 hash-to-curve
 	type Hashable interface {
 		Hash(msg []byte) kyber.Point
