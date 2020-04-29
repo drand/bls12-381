@@ -7,6 +7,7 @@ import (
 	"os"
 
 	bls "github.com/drand/bls12-381"
+	sig "github.com/drand/kyber/sign/bls"
 )
 
 type testVector struct {
@@ -14,6 +15,9 @@ type testVector struct {
 	Ciphersuite  string
 	G1Compressed []byte
 	G2Compressed []byte
+	BLSPrivKey   string
+	BLSPubKey    []byte
+	BLSSigG2     []byte
 }
 
 func main() {
@@ -45,6 +49,20 @@ func main() {
 		exp = tv.G2Compressed
 		if !bytes.Equal(g2Buff, exp) {
 			fmt.Println("test", i, " fails at G2")
+		}
+
+		if tv.BLSPrivKey != "" {
+			// SIGNATURE is always happening on bls.Domain
+			pairing := bls.NewBLS12381Suite()
+			scheme := sig.NewSchemeOnG2(pairing)
+			pubKey := pairing.G1().Point()
+			if err := pubKey.UnmarshalBinary(tv.BLSPubKey); err != nil {
+				panic(err)
+			}
+			err := scheme.Verify(pubKey, []byte(tv.Msg), tv.BLSSigG2)
+			if err != nil {
+				fmt.Println("test", i, " fails for signature")
+			}
 		}
 	}
 }

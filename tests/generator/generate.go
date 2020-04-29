@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 
 	bls "github.com/drand/bls12-381"
+	"github.com/drand/kyber/group/mod"
+	sig "github.com/drand/kyber/sign/bls"
+	"github.com/drand/kyber/util/random"
 )
 
 type toWrite struct {
@@ -12,6 +16,9 @@ type toWrite struct {
 	Ciphersuite  string
 	G1Compressed []byte
 	G2Compressed []byte
+	BLSPrivKey   string
+	BLSPubKey    []byte
+	BLSSigG2     []byte
 }
 
 func main() {
@@ -55,6 +62,22 @@ func main() {
 			Ciphersuite:  tv.cipher,
 			G1Compressed: g1Buff,
 			G2Compressed: g2Buff,
+		}
+
+		if bytes.Equal([]byte(tv.cipher), bls.Domain) {
+			// SIGNATURE is always happening on bls.Domain
+			pairing := bls.NewBLS12381Suite()
+			scheme := sig.NewSchemeOnG2(pairing)
+			priv, pub := scheme.NewKeyPair(random.New())
+			privDecimal := priv.(*mod.Int).V.String()
+			pubBuff, _ := pub.MarshalBinary()
+			signature, err := scheme.Sign(priv, []byte(tv.msg))
+			if err != nil {
+				panic(err)
+			}
+			s.BLSPrivKey = privDecimal
+			s.BLSPubKey = pubBuff
+			s.BLSSigG2 = signature
 		}
 		vectors = append(vectors, s)
 	}
