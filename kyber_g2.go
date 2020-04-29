@@ -23,6 +23,7 @@ func nullKyberG2() *KyberG2 {
 	var p PointG2
 	return newKyberG2(&p)
 }
+
 func newKyberG2(p *PointG2) *KyberG2 {
 	return &KyberG2{p: p}
 }
