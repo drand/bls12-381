@@ -2,7 +2,11 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"io"
+	mrand "math/rand"
 	"os"
 
 	bls "github.com/drand/bls12-381"
@@ -20,16 +24,15 @@ type toWrite struct {
 	BLSPubKey    []byte
 	BLSSigG2     []byte
 }
+type testVector struct {
+	msg    string
+	cipher string
+}
 
 func main() {
 	outputName := "compatibility.dat"
-	type testVector struct {
-		msg    string
-		cipher string
-	}
-
 	var vectors []toWrite
-	for _, tv := range []testVector{
+	var tvs = []testVector{
 		{
 			msg:    "",
 			cipher: "",
@@ -42,11 +45,9 @@ func main() {
 			msg:    "1234",
 			cipher: string(bls.Domain),
 		},
-		{
-			msg:    "abaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-			cipher: string(bls.Domain),
-		},
-	} {
+	}
+	tvs = fill(tvs)
+	for _, tv := range tvs {
 		g1, err := bls.NewG1().HashToCurve([]byte(tv.msg), []byte(tv.cipher))
 		if err != nil {
 			panic(err)
@@ -91,4 +92,30 @@ func main() {
 	if err := encoder.Encode(vectors); err != nil {
 		panic(err)
 	}
+}
+
+func fill(tvs []testVector) []testVector {
+	tvs = append(tvs, testVector{
+		msg:    randomString(32),
+		cipher: string(bls.Domain),
+	})
+	tvs = append(tvs, testVector{
+		msg:    randomString(64),
+		cipher: string(bls.Domain),
+	})
+	for i := 0; i < 100; i++ {
+		msgLen := mrand.Intn(2000)
+		msg := randomString(msgLen)
+		tvs = append(tvs, testVector{
+			msg:    msg,
+			cipher: string(bls.Domain),
+		})
+	}
+	return tvs
+}
+
+func randomString(n int) string {
+	out := make([]byte, n)
+	io.ReadFull(rand.Reader, out)
+	return hex.EncodeToString(out)
 }
